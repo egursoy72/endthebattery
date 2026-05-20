@@ -667,7 +667,7 @@
         <li><a href="#how">Technology</a></li>
         <li><a href="#benefits">Benefits</a></li>
         <li><a href="#cta">Early Access</a></li>
-        <li><a href="mailto:hello@endthebattery.com">Contact</a></li>
+        <li><a href="mailto:erdalgursoy@gmail.com">Contact</a></li>
       </ul>
       <span class="footer-copy">&copy; 2026 EndTheBattery. All rights reserved.</span>
     </div>
@@ -702,15 +702,33 @@
   }, { threshold: 0.4 });
   sections.forEach(s => observer.observe(s));
 
-  // Signup handler (replace with real form action / API call)
-  function handleSignup(e) {
+  async function handleSignup(e) {
     e.preventDefault();
-    const btn = e.target.querySelector('button');
+    const btn   = e.target.querySelector('button');
     const input = e.target.querySelector('input');
-    btn.textContent = "You're on the list!";
-    btn.style.background = 'linear-gradient(135deg,#22c55e,#16a34a)';
-    input.disabled = true;
+
+    btn.textContent = 'Sending…';
     btn.disabled = true;
+    input.disabled = true;
+
+    const body = new FormData();
+    body.append('email', input.value);
+
+    try {
+      const res  = await fetch('submit.php', { method: 'POST', body });
+      const data = await res.json();
+      if (data.success) {
+        btn.textContent = "You're on the list!";
+        btn.style.background = 'linear-gradient(135deg,#22c55e,#16a34a)';
+      } else {
+        throw new Error(data.error || 'Unknown error');
+      }
+    } catch (err) {
+      btn.textContent = 'Try again';
+      btn.style.background = '';
+      btn.disabled = false;
+      input.disabled = false;
+    }
   }
 
   // Weather widget
