@@ -334,6 +334,40 @@
     .footer-links a:hover { color: var(--text); }
     .footer-copy { color: var(--muted); font-size: 0.82rem; }
 
+    /* ── Weather Widget ── */
+    #weather-widget {
+      position: fixed; bottom: 24px; right: 24px; z-index: 200;
+      background: rgba(13,16,32,0.85);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px 20px;
+      min-width: 210px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 24px rgba(0,212,255,0.06);
+      transition: opacity 0.4s, transform 0.4s;
+      opacity: 0; transform: translateY(12px);
+    }
+    #weather-widget.visible { opacity: 1; transform: translateY(0); }
+    .weather-location {
+      font-size: 0.72rem; font-weight: 600; color: var(--glow);
+      text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px;
+      display: flex; align-items: center; gap: 5px;
+    }
+    .weather-location::before { content: '◎'; font-size: 0.65rem; animation: pulse 2s infinite; }
+    .weather-main {
+      display: flex; align-items: center; gap: 12px;
+    }
+    .weather-icon { font-size: 2.2rem; line-height: 1; }
+    .weather-temp { font-size: 2rem; font-weight: 800; color: var(--white); line-height: 1; }
+    .weather-temp sup { font-size: 0.9rem; font-weight: 500; color: var(--muted); }
+    .weather-desc { font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
+    .weather-tagline {
+      margin-top: 10px; padding-top: 10px;
+      border-top: 1px solid var(--border);
+      font-size: 0.75rem; color: var(--muted); font-style: italic; line-height: 1.4;
+    }
+    .weather-error { font-size: 0.8rem; color: var(--muted); }
+
     /* ── Responsive ── */
     @media (max-width: 900px) {
       .hero-content { grid-template-columns: 1fr; text-align: center; }
@@ -640,6 +674,19 @@
   </div>
 </footer>
 
+<!-- Weather Widget -->
+<div id="weather-widget">
+  <div class="weather-location" id="weather-city">Locating…</div>
+  <div class="weather-main">
+    <div class="weather-icon" id="weather-icon">⏳</div>
+    <div>
+      <div class="weather-temp" id="weather-temp">--<sup>°C</sup></div>
+      <div class="weather-desc" id="weather-desc">Fetching weather</div>
+    </div>
+  </div>
+  <div class="weather-tagline" id="weather-tagline">Your mouse works in any weather — no batteries needed.</div>
+</div>
+
 <script>
   // Smooth active nav state on scroll
   const sections = document.querySelectorAll('section[id]');
@@ -665,6 +712,91 @@
     input.disabled = true;
     btn.disabled = true;
   }
+
+  // Weather widget
+  (function initWeather() {
+    const WMO = {
+      0:  ['☀️',  'Clear sky'],
+      1:  ['🌤️', 'Mainly clear'],
+      2:  ['⛅',  'Partly cloudy'],
+      3:  ['☁️',  'Overcast'],
+      45: ['🌫️', 'Foggy'],
+      48: ['🌫️', 'Icy fog'],
+      51: ['🌦️', 'Light drizzle'],
+      53: ['🌦️', 'Drizzle'],
+      55: ['🌧️', 'Heavy drizzle'],
+      61: ['🌧️', 'Light rain'],
+      63: ['🌧️', 'Rain'],
+      65: ['🌧️', 'Heavy rain'],
+      71: ['🌨️', 'Light snow'],
+      73: ['❄️',  'Snow'],
+      75: ['❄️',  'Heavy snow'],
+      80: ['🌦️', 'Rain showers'],
+      81: ['🌧️', 'Showers'],
+      82: ['⛈️', 'Heavy showers'],
+      95: ['⛈️', 'Thunderstorm'],
+      99: ['⛈️', 'Thunderstorm with hail'],
+    };
+    const taglines = {
+      clear:  'Perfect day to stay productive — mouse powered by motion, not batteries.',
+      rain:   'Raining outside, but your mouse never needs a recharge.',
+      snow:   'Snowy outside — your mouse keeps working, battery-free.',
+      fog:    'Low visibility out there, but zero battery anxiety in here.',
+      storm:  'Storm outside, steady workflow inside — no batteries to replace.',
+    };
+    function getTagline(code) {
+      if (code === 0 || code === 1) return taglines.clear;
+      if (code >= 71 && code <= 77) return taglines.snow;
+      if (code >= 95) return taglines.storm;
+      if (code === 45 || code === 48) return taglines.fog;
+      if (code >= 51) return taglines.rain;
+      return taglines.clear;
+    }
+
+    const widget  = document.getElementById('weather-widget');
+    const elCity  = document.getElementById('weather-city');
+    const elIcon  = document.getElementById('weather-icon');
+    const elTemp  = document.getElementById('weather-temp');
+    const elDesc  = document.getElementById('weather-desc');
+    const elLine  = document.getElementById('weather-tagline');
+
+    function show(city, temp, code) {
+      const [icon, desc] = WMO[code] || ['🌡️', 'Unknown'];
+      elCity.textContent = city;
+      elIcon.textContent = icon;
+      elTemp.innerHTML   = `${Math.round(temp)}<sup>°C</sup>`;
+      elDesc.textContent = desc;
+      elLine.textContent = getTagline(code);
+      widget.classList.add('visible');
+    }
+    function showError(msg) {
+      elCity.textContent = 'Weather unavailable';
+      elIcon.textContent = '📡';
+      elTemp.innerHTML   = '';
+      elDesc.textContent = msg;
+      elLine.textContent = 'No batteries needed — whatever the weather.';
+      widget.classList.add('visible');
+    }
+
+    if (!navigator.geolocation) { showError('Geolocation not supported'); return; }
+
+    navigator.geolocation.getCurrentPosition(async pos => {
+      const { latitude: lat, longitude: lon } = pos.coords;
+      try {
+        const [wRes, gRes] = await Promise.all([
+          fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`),
+          fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`)
+        ]);
+        const wData = await wRes.json();
+        const gData = await gRes.json();
+        const city = gData.address?.city || gData.address?.town || gData.address?.village || gData.address?.county || 'Your location';
+        const { temperature, weathercode } = wData.current_weather;
+        show(city, temperature, weathercode);
+      } catch {
+        showError('Could not load weather');
+      }
+    }, () => showError('Location access denied'));
+  })();
 
   // Scroll-triggered fade-in for cards
   const fadeEls = document.querySelectorAll('.step, .benefit-card, .stat-item, .compare-row');
